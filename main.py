@@ -10,10 +10,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Constants
-API_KEY = "Cdt4DH52fRYNECVWtX"
-API_SECRET = "ExZIHZKAa1XPbKATV5YG1NLO3fVx44xry7da"
-# API_KEY = 'r20vk2T6FIl5BhVgg4'
-# API_SECRET = 'sRL0lTzifGRIlMhHZIBCEs5RbQbeeUz4DD2R'
+API_KEY = ""
+API_SECRET = ""
 
 class TradingBot:
     def __init__(self):
