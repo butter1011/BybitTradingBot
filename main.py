@@ -1,4 +1,3 @@
-# bybit trading
 import time
 import logging
 from pybit.unified_trading import HTTP
@@ -87,7 +86,7 @@ class TradingBot:
                 triggerDirection=2,
                 takeProfit=str(self.order_price * Decimal('0.995')),
             )
-            logger.info(f"New Order placed: {order}")
+            logger.info(f"New Order placed: {order}\n")
             if 'result' in order and 'orderId' in order['result']:
                 logger.info(f"Order ID: {order['result']['orderId']}")
             else:
