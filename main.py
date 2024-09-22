@@ -1,3 +1,4 @@
+
 import time
 import logging
 from pybit.unified_trading import HTTP
@@ -14,7 +15,7 @@ API_SECRET = ""
 
 class TradingBot:
     def __init__(self):
-        self.session = HTTP(testnet=True, api_key=API_KEY, api_secret=API_SECRET)
+        self.session = HTTP(testnet=False, api_key=API_KEY, api_secret=API_SECRET)
         self.symbol = 'BTCUSDT'
         self.trigger_price = Decimal(input("Enter the trigger price: "))
         self.order_price = Decimal(input("Enter the order price: "))
@@ -79,14 +80,14 @@ class TradingBot:
                 orderType="Limit",
                 qty=str(qty),
                 price=str(self.order_price),
-                timeInForce="PostOnly",
+             
                 stopLoss=str(self.stop_loss_price),
                 triggerPrice=str(self.trigger_price),
                 leverage=str(self.leverage),
                 triggerDirection=2,
-                takeProfit=str(self.order_price * Decimal('0.995')),
+                takeProfit=str(self.order_price * Decimal('0.5')),
             )
-            logger.info(f"New Order placed: {order}\n")
+            logger.info(f"New Order placed: {order}")
             if 'result' in order and 'orderId' in order['result']:
                 logger.info(f"Order ID: {order['result']['orderId']}")
             else:
@@ -122,10 +123,8 @@ class TradingBot:
                         logger.info("Closing position...")
                         if order_history and order_history[0]["orderStatus"] == "Filled":
                             logger.warning("Position filled")
-                            break
                         else:
                             logger.warning("Position closed")
-                            order_placed = self.place_order()
 
                         is_opened_position = False
                     elif not order_placed:
