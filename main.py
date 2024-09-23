@@ -41,34 +41,6 @@ class TradingBot:
         else:
             return self.trigger_price + Decimal('1')
 
-    def get_market_price(self) -> Optional[Decimal]:
-        try:
-            ticker = self.session.get_tickers(category="linear", symbol=self.symbol)
-            return Decimal(ticker["result"]["list"][0]["lastPrice"])
-        except Exception as e:
-            logger.error(f"Error getting market price: {e}\n")
-            return None
-
-    def get_open_order(self) -> Optional[Dict[str, Any]]:
-        try:
-            orders = self.session.get_open_orders(category="linear", symbol=self.symbol)
-            for order in orders["result"]["list"]:
-                if order["orderType"] == "Limit" and order["side"] == "Sell":
-                    logger.info(f"Found open order: {order['orderStatus']}")
-                    return order
-            return None
-        except Exception as e:
-            logger.error(f"Error checking open orders: {e}\n")
-            return None
-
-    def get_order_history(self) -> Optional[list[Dict[str, Any]]]:
-        try:
-            order_history = self.session.get_order_history(category="linear", symbol=self.symbol, limit=1)
-            return order_history["result"]["list"]
-        except Exception as e:
-            logger.error(f"Error checking order history: {e}\n")
-            return None
-
     def get_open_position(self) -> Optional[Dict[str, Any]]:
         try:
             positions = self.session.get_positions(category="linear", symbol=self.symbol)
