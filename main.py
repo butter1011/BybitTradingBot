@@ -34,29 +34,29 @@ class TradingBot:
         self.amount = Decimal(input("Enter the amount: "))
         self.leverage = int(input("Enter the leverage: "))
 
-    def get_stop_loss_price(self) -> Decimal:
-        user_input = input("Enter the stop loss price (press Enter for default): ")
-        if user_input:
-            return Decimal(user_input)
-        else:
-            return self.trigger_price + Decimal('1')
+    # def get_stop_loss_price(self) -> Decimal:
+    #     user_input = input("Enter the stop loss price (press Enter for default): ")
+    #     if user_input:
+    #         return Decimal(user_input)
+    #     else:
+    #         return self.trigger_price + Decimal('1')
 
-    def get_open_position(self) -> Optional[Dict[str, Any]]:
-        try:
-            positions = self.session.get_positions(category="linear", symbol=self.symbol)
-            for pos in positions["result"]["list"]:
-                if pos["stopLoss"] != "":
-                    logger.info(f"Found position... {pos['curRealisedPnl']}")
-                    return pos
-            return None
-        except Exception as e:
-            logger.error(f"Error checking open positions: {e}\n")
-            return None
+    # def get_open_position(self) -> Optional[Dict[str, Any]]:
+    #     try:
+    #         positions = self.session.get_positions(category="linear", symbol=self.symbol)
+    #         for pos in positions["result"]["list"]:
+    #             if pos["stopLoss"] != "":
+    #                 logger.info(f"Found position... {pos['curRealisedPnl']}")
+    #                 return pos
+    #         return None
+    #     except Exception as e:
+    #         logger.error(f"Error checking open positions: {e}\n")
+    #         return None
 
-    def place_order(self) -> bool:
-        try:
-            qty = (self.amount / self.order_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
-            order = self.session.place_order(
+    # def place_order(self) -> bool:
+    #     try:
+    #         qty = (self.amount / self.order_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
+    #         order = self.session.place_order(
                 category="linear",
                 symbol=self.symbol,
                 side="Sell",
