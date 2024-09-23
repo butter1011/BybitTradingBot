@@ -4,6 +4,8 @@ import logging
 from pybit.unified_trading import HTTP
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional, Dict, Any
+from backtesting import Backtest, Strategy
+from backtesting.lib import crossover
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -123,6 +125,14 @@ class TradingBot:
             logger.error(f"An error occurred in run: {e}\n")
 
 if __name__ == "__main__":
+    # Load historical data (you need to implement this part)
+    # For example:
+    # data = pd.read_csv('BTCUSDT_data.csv', index_col='timestamp', parse_dates=True)
+    
+    # Run the backtest
+    # stats = run_backtest(data)
+    # print(stats)
+
     try:
         bot = TradingBot()
         bot.run()
