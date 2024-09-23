@@ -34,29 +34,57 @@ class TradingBot:
         self.amount = Decimal(input("Enter the amount: "))
         self.leverage = int(input("Enter the leverage: "))
 
-    # def get_stop_loss_price(self) -> Decimal:
-    #     user_input = input("Enter the stop loss price (press Enter for default): ")
-    #     if user_input:
-    #         return Decimal(user_input)
-    #     else:
-    #         return self.trigger_price + Decimal('1')
+    def get_stop_loss_price(self) -> Decimal:
+        user_input = input("Enter the stop loss price (press Enter for default): ")
+        if user_input:
+            return Decimal(user_input)
+        else:
+            return self.trigger_price + Decimal('1')
 
-    # def get_open_position(self) -> Optional[Dict[str, Any]]:
-    #     try:
-    #         positions = self.session.get_positions(category="linear", symbol=self.symbol)
-    #         for pos in positions["result"]["list"]:
-    #             if pos["stopLoss"] != "":
-    #                 logger.info(f"Found position... {pos['curRealisedPnl']}")
-    #                 return pos
-    #         return None
-    #     except Exception as e:
-    #         logger.error(f"Error checking open positions: {e}\n")
-    #         return None
+    def get_market_price(self) -> Optional[Decimal]:
+        try:
+            ticker = self.session.get_tickers(category="linear", symbol=self.symbol)
+            return Decimal(ticker["result"]["list"][0]["lastPrice"])
+        except Exception as e:
+            logger.error(f"Error getting market price: {e}\n")
+            return None
 
-    # def place_order(self) -> bool:
-    #     try:
-    #         qty = (self.amount / self.order_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
-    #         order = self.session.place_order(
+    def get_open_order(self) -> Optional[Dict[str, Any]]:
+        try:
+            orders = self.session.get_open_orders(category="linear", symbol=self.symbol)
+            for order in orders["result"]["list"]:
+                if order["orderType"] == "Limit" and order["side"] == "Sell":
+                    logger.info(f"Found open order: {order['orderStatus']}")
+                    return order
+            return None
+        except Exception as e:
+            logger.error(f"Error checking open orders: {e}\n")
+            return None
+
+    def get_order_history(self) -> Optional[list[Dict[str, Any]]]:
+        try:
+            order_history = self.session.get_order_history(category="linear", symbol=self.symbol, limit=1)
+            return order_history["result"]["list"]
+        except Exception as e:
+            logger.error(f"Error checking order history: {e}\n")
+            return None
+
+    def get_open_position(self) -> Optional[Dict[str, Any]]:
+        try:
+            positions = self.session.get_positions(category="linear", symbol=self.symbol)
+            for pos in positions["result"]["list"]:
+                if pos["stopLoss"] != "":
+                    logger.info(f"Found position... {pos['curRealisedPnl']}")
+                    return pos
+            return None
+        except Exception as e:
+            logger.error(f"Error checking open positions: {e}\n")
+            return None
+
+    def place_order(self) -> bool:
+        try:
+            qty = (self.amount / self.order_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
+            order = self.session.place_order(
                 category="linear",
                 symbol=self.symbol,
                 side="Sell",
