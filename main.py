@@ -5,91 +5,47 @@ from pybit.unified_trading import HTTP
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional, Dict, Any
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
-# Constants
-API_KEY = 'r20vk2T6FIl5BhVgg4'
-API_SECRET = 'sRL0lTzifGRIlMhHZIBCEs5RbQbeeUz4DD2R'
-
 class TradingBot:
     def __init__(self):
-        self.session = HTTP(testnet=True, api_key=API_KEY, api_secret=API_SECRET)
-        self.symbol = 'BTCUSDT'
-        self.trigger_price = Decimal(input("Enter the trigger price: "))
-        self.order_price = Decimal(input("Enter the order price: "))
-        self.stop_loss_price = self.get_stop_loss_price()
-        self.amount = Decimal(input("Enter the amount: "))
-        self.leverage = int(input("Enter the leverage: "))
-        self.strategy = input("Enter the strategy (MA, RSI, or MACD): ").upper()
-        self.ma_period = 20 if self.strategy == 'MA' else None
-        self.rsi_period = 14 if self.strategy == 'RSI' else None
-        self.macd_fast = 12 if self.strategy == 'MACD' else None
-        self.macd_slow = 26 if self.strategy == 'MACD' else None
-        self.macd_signal = 9 if self.strategy == 'MACD' else None
+        # ... (existing initialization)
+        self.retracement_percentage = Decimal(input("Enter the retracement percentage (0-100): ")) / 100
 
-    def calculate_ma(self, data, period):
-        return sum(data[-period:]) / period
+    # ... (existing methods)
 
-    def calculate_rsi(self, data, period):
-        deltas = [data[i] - data[i-1] for i in range(1, len(data))]
-        gain = [d if d > 0 else 0 for d in deltas]
-        loss = [-d if d < 0 else 0 for d in deltas]
-        avg_gain = sum(gain[-period:]) / period
-        avg_loss = sum(loss[-period:]) / period
-        rs = avg_gain / avg_loss if avg_loss != 0 else 0
-        return 100 - (100 / (1 + rs))
+    def calculate_retracement_price(self, high_price: Decimal, low_price: Decimal) -> Decimal:
+        price_range = high_price - low_price
+        retracement_amount = price_range * self.retracement_percentage
+        return high_price - retracement_amount
 
-    def calculate_macd(self, data, fast, slow, signal):
-        ema_fast = self.calculate_ema(data, fast)
-        ema_slow = self.calculate_ema(data, slow)
-        macd_line = ema_fast - ema_slow
-        signal_line = self.calculate_ema(macd_line, signal)
-        return macd_line[-1], signal_line[-1]
-
-    def calculate_ema(self, data, period):
-        multiplier = 2 / (period + 1)
-        ema = [data[0]]
-        for price in data[1:]:
-            ema.append((price - ema[-1]) * multiplier + ema[-1])
-        return ema
-
-    def get_historical_data(self, limit=100):
+    def place_retracement_order(self, retracement_price: Decimal) -> bool:
         try:
-            kline = self.session.get_kline(
+            qty = (self.amount / retracement_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
+            order = self.session.place_order(
                 category="linear",
                 symbol=self.symbol,
-                interval=15,
-                limit=limit
+                side="Buy",
+                orderType="Limit",
+                qty=str(qty),
+                price=str(retracement_price),
+                stopLoss=str(self.stop_loss_price),
+                takeProfit=str(retracement_price * Decimal('1.5')),
+                leverage=str(self.leverage),
             )
-            return [Decimal(candle[4]) for candle in kline["result"]["list"]]
+            logger.info(f"Retracement Order placed: {order}")
+            if 'result' in order and 'orderId' in order['result']:
+                logger.info(f"Retracement Order ID: {order['result']['orderId']}")
+            else:
+                logger.warning(f"Unexpected retracement order response format: {order}")
+            return True
         except Exception as e:
-            logger.error(f"Error getting historical data: {e}")
-            return None
-
-    def should_enter_trade(self):
-        historical_data = self.get_historical_data()
-        if not historical_data:
+            logger.error(f"Error placing retracement order: {e}\n")
             return False
-
-        if self.strategy == 'MA':
-            ma = self.calculate_ma(historical_data, self.ma_period)
-            return historical_data[-1] > ma
-
-        elif self.strategy == 'RSI':
-            rsi = self.calculate_rsi(historical_data, self.rsi_period)
-            return rsi < 30  # Oversold condition
-
-        elif self.strategy == 'MACD':
-            macd, signal = self.calculate_macd(historical_data, self.macd_fast, self.macd_slow, self.macd_signal)
-            return macd > signal  # Bullish crossover
-
-        return False
 
     def run(self):
         try:
             is_opened_position = False
+            high_price = Decimal('-Infinity')
+            low_price = Decimal('Infinity')
 
             while True:
                 market_price = self.get_market_price()
@@ -97,10 +53,17 @@ class TradingBot:
                     time.sleep(5)
                     continue
 
+                high_price = max(high_price, market_price)
+                low_price = min(low_price, market_price)
+
                 logger.info(
-                    f"Market price: {market_price}, Trigger price: {self.trigger_price}, "
-                    f"stop loss price: {self.stop_loss_price}, Order price: {self.order_price}"
+                    f"Market price: {market_price}, High: {high_price}, Low: {low_price}, "
+                    f"Trigger price: {self.trigger_price}, Stop loss: {self.stop_loss_price}, "
+                    f"Order price: {self.order_price}"
                 )
+
+                retracement_price = self.calculate_retracement_price(high_price, low_price)
+                logger.info(f"Calculated retracement price: {retracement_price}")
 
                 order_placed = self.get_open_order()
                 open_position = self.get_open_position()
@@ -117,20 +80,14 @@ class TradingBot:
                             logger.warning("Position closed")
 
                         is_opened_position = False
+                        high_price = Decimal('-Infinity')
+                        low_price = Decimal('Infinity')
                     elif not order_placed:
-                        if self.should_enter_trade():
-                            order_placed = self.place_order()
-                            logger.info(f"Entered trade based on {self.strategy} strategy")
+                        if market_price <= retracement_price:
+                            self.place_retracement_order(retracement_price)
                         else:
-                            logger.info(f"Waiting for {self.strategy} strategy signal")
+                            self.place_order()
 
                 time.sleep(0.1)
         except Exception as e:
             logger.error(f"An error occurred in run: {e}\n")
-
-if __name__ == "__main__":
-    try:
-        bot = TradingBot()
-        bot.run()
-    except Exception as e:
-        logger.error(f"An unhandled exception occurred: {e}\n")
