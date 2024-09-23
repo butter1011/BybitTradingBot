@@ -28,6 +28,12 @@ class TradingBot:
         else:
             return self.trigger_price + Decimal('1')
 
+    def run_backtest(data):
+        bt = Backtest(data, TradingStrategy, cash=10000, commission=.002)
+        stats = bt.run()
+        bt.plot()
+        return stats
+
     def place_order(self) -> bool:
         try:
             qty = (self.amount / self.order_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
