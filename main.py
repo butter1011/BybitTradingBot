@@ -4,113 +4,88 @@ import logging
 from pybit.unified_trading import HTTP
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional, Dict, Any
-from dotenv import load_dotenv
-import os
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Constants
-API_KEY = os.getenv('API_KEY')
-API_SECRET = os.getenv('API_SECRET')
+API_KEY = 'r20vk2T6FIl5BhVgg4'
+API_SECRET = 'sRL0lTzifGRIlMhHZIBCEs5RbQbeeUz4DD2R'
 
 class TradingBot:
     def __init__(self):
         self.session = HTTP(testnet=True, api_key=API_KEY, api_secret=API_SECRET)
         self.symbol = 'BTCUSDT'
-        self.trigger_price = self._get_decimal_input("Enter the trigger price: ")
-        self.order_price = self._get_decimal_input("Enter the order price: ")
-        self.stop_loss_price = self._get_stop_loss_price()
-        self.amount = self._get_decimal_input("Enter the amount: ")
-        self.leverage = self._get_integer_input("Enter the leverage: ")
+        self.trigger_price = Decimal(input("Enter the trigger price: "))
+        self.order_price = Decimal(input("Enter the order price: "))
+        self.stop_loss_price = self.get_stop_loss_price()
+        self.amount = Decimal(input("Enter the amount: "))
+        self.leverage = int(input("Enter the leverage: "))
+        self.strategy = input("Enter the strategy (MA, RSI, or MACD): ").upper()
+        self.ma_period = 20 if self.strategy == 'MA' else None
+        self.rsi_period = 14 if self.strategy == 'RSI' else None
+        self.macd_fast = 12 if self.strategy == 'MACD' else None
+        self.macd_slow = 26 if self.strategy == 'MACD' else None
+        self.macd_signal = 9 if self.strategy == 'MACD' else None
 
-    def _get_decimal_input(self, prompt: str) -> Decimal:
-        while True:
-            try:
-                return Decimal(input(prompt))
-            except ValueError:
-                print("Invalid input. Please enter a valid number.")
+    def calculate_ma(self, data, period):
+        return sum(data[-period:]) / period
 
-    def _get_integer_input(self, prompt: str) -> int:
-        while True:
-            try:
-                return int(input(prompt))
-            except ValueError:
-                print("Invalid input. Please enter a valid integer.")
+    def calculate_rsi(self, data, period):
+        deltas = [data[i] - data[i-1] for i in range(1, len(data))]
+        gain = [d if d > 0 else 0 for d in deltas]
+        loss = [-d if d < 0 else 0 for d in deltas]
+        avg_gain = sum(gain[-period:]) / period
+        avg_loss = sum(loss[-period:]) / period
+        rs = avg_gain / avg_loss if avg_loss != 0 else 0
+        return 100 - (100 / (1 + rs))
 
-    def _get_stop_loss_price(self) -> Decimal:
-        user_input = input("Enter the stop loss price (press Enter for default): ")
-        return Decimal(user_input) if user_input else self.trigger_price + Decimal('1')
+    def calculate_macd(self, data, fast, slow, signal):
+        ema_fast = self.calculate_ema(data, fast)
+        ema_slow = self.calculate_ema(data, slow)
+        macd_line = ema_fast - ema_slow
+        signal_line = self.calculate_ema(macd_line, signal)
+        return macd_line[-1], signal_line[-1]
 
-    def get_market_price(self) -> Optional[Decimal]:
+    def calculate_ema(self, data, period):
+        multiplier = 2 / (period + 1)
+        ema = [data[0]]
+        for price in data[1:]:
+            ema.append((price - ema[-1]) * multiplier + ema[-1])
+        return ema
+
+    def get_historical_data(self, limit=100):
         try:
-            ticker = self.session.get_tickers(category="linear", symbol=self.symbol)
-            return Decimal(ticker["result"]["list"][0]["lastPrice"])
-        except Exception as e:
-            logger.error(f"Error getting market price: {e}")
-            return None
-
-    def get_open_order(self) -> Optional[Dict[str, Any]]:
-        try:
-            orders = self.session.get_open_orders(category="linear", symbol=self.symbol)
-            for order in orders["result"]["list"]:
-                if order["orderType"] == "Limit" and order["side"] == "Sell":
-                    logger.info(f"Found open order: {order['orderStatus']}")
-                    return order
-            return None
-        except Exception as e:
-            logger.error(f"Error checking open orders: {e}")
-            return None
-
-    def get_order_history(self) -> Optional[list[Dict[str, Any]]]:
-        try:
-            order_history = self.session.get_order_history(category="linear", symbol=self.symbol, limit=1)
-            return order_history["result"]["list"]
-        except Exception as e:
-            logger.error(f"Error checking order history: {e}")
-            return None
-
-    def get_open_position(self) -> Optional[Dict[str, Any]]:
-        try:
-            positions = self.session.get_positions(category="linear", symbol=self.symbol)
-            for pos in positions["result"]["list"]:
-                if pos["stopLoss"]:
-                    logger.info(f"Found position... {pos['curRealisedPnl']}")
-                    return pos
-            return None
-        except Exception as e:
-            logger.error(f"Error checking open positions: {e}")
-            return None
-
-    def place_order(self) -> bool:
-        try:
-            qty = (self.amount / self.order_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
-            order = self.session.place_order(
+            kline = self.session.get_kline(
                 category="linear",
                 symbol=self.symbol,
-                side="Sell",
-                orderType="Limit",
-                qty=str(qty),
-                price=str(self.order_price),
-                stopLoss=str(self.stop_loss_price),
-                triggerPrice=str(self.trigger_price),
-                leverage=str(self.leverage),
-                triggerDirection=2,
-                takeProfit=str(self.order_price * Decimal('0.5')),
+                interval=15,
+                limit=limit
             )
-            logger.info(f"New Order placed: {order}")
-            if 'result' in order and 'orderId' in order['result']:
-                logger.info(f"Order ID: {order['result']['orderId']}")
-            else:
-                logger.warning(f"Unexpected order response format: {order}")
-            return True
+            return [Decimal(candle[4]) for candle in kline["result"]["list"]]
         except Exception as e:
-            logger.error(f"Error placing order: {e}")
+            logger.error(f"Error getting historical data: {e}")
+            return None
+
+    def should_enter_trade(self):
+        historical_data = self.get_historical_data()
+        if not historical_data:
             return False
+
+        if self.strategy == 'MA':
+            ma = self.calculate_ma(historical_data, self.ma_period)
+            return historical_data[-1] > ma
+
+        elif self.strategy == 'RSI':
+            rsi = self.calculate_rsi(historical_data, self.rsi_period)
+            return rsi < 30  # Oversold condition
+
+        elif self.strategy == 'MACD':
+            macd, signal = self.calculate_macd(historical_data, self.macd_fast, self.macd_slow, self.macd_signal)
+            return macd > signal  # Bullish crossover
+
+        return False
 
     def run(self):
         try:
@@ -124,7 +99,7 @@ class TradingBot:
 
                 logger.info(
                     f"Market price: {market_price}, Trigger price: {self.trigger_price}, "
-                    f"Stop loss price: {self.stop_loss_price}, Order price: {self.order_price}"
+                    f"stop loss price: {self.stop_loss_price}, Order price: {self.order_price}"
                 )
 
                 order_placed = self.get_open_order()
@@ -143,15 +118,19 @@ class TradingBot:
 
                         is_opened_position = False
                     elif not order_placed:
-                        self.place_order()
+                        if self.should_enter_trade():
+                            order_placed = self.place_order()
+                            logger.info(f"Entered trade based on {self.strategy} strategy")
+                        else:
+                            logger.info(f"Waiting for {self.strategy} strategy signal")
 
                 time.sleep(0.1)
         except Exception as e:
-            logger.error(f"An error occurred in run: {e}")
+            logger.error(f"An error occurred in run: {e}\n")
 
 if __name__ == "__main__":
     try:
         bot = TradingBot()
         bot.run()
     except Exception as e:
-        logger.error(f"An unhandled exception occurred: {e}")
+        logger.error(f"An unhandled exception occurred: {e}\n")
