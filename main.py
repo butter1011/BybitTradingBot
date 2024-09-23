@@ -5,47 +5,42 @@ from pybit.unified_trading import HTTP
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional, Dict, Any
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# Constants
+API_KEY = 'r20vk2T6FIl5BhVgg4'
+API_SECRET = 'sRL0lTzifGRIlMhHZIBCEs5RbQbeeUz4DD2R'
+
 class TradingBot:
     def __init__(self):
-        # ... (existing initialization)
-        self.retracement_percentage = Decimal(input("Enter the retracement percentage (0-100): ")) / 100
+        self.session = HTTP(testnet=True, api_key=API_KEY, api_secret=API_SECRET)
+        self.symbol = 'BTCUSDT'
+        self.trigger_price = Decimal(input("Enter the trigger price: "))
+        self.order_price = Decimal(input("Enter the order price: "))
+        self.stop_loss_price = self.get_stop_loss_price()
+        self.amount = Decimal(input("Enter the amount: "))
+        self.leverage = int(input("Enter the leverage: "))
+        self.monitoring_interval = int(input("Enter monitoring interval in seconds: "))
 
-    # ... (existing methods)
-
-    def calculate_retracement_price(self, high_price: Decimal, low_price: Decimal) -> Decimal:
-        price_range = high_price - low_price
-        retracement_amount = price_range * self.retracement_percentage
-        return high_price - retracement_amount
-
-    def place_retracement_order(self, retracement_price: Decimal) -> bool:
-        try:
-            qty = (self.amount / retracement_price).quantize(Decimal("0.001"), rounding=ROUND_DOWN)
-            order = self.session.place_order(
-                category="linear",
-                symbol=self.symbol,
-                side="Buy",
-                orderType="Limit",
-                qty=str(qty),
-                price=str(retracement_price),
-                stopLoss=str(self.stop_loss_price),
-                takeProfit=str(retracement_price * Decimal('1.5')),
-                leverage=str(self.leverage),
-            )
-            logger.info(f"Retracement Order placed: {order}")
-            if 'result' in order and 'orderId' in order['result']:
-                logger.info(f"Retracement Order ID: {order['result']['orderId']}")
-            else:
-                logger.warning(f"Unexpected retracement order response format: {order}")
-            return True
-        except Exception as e:
-            logger.error(f"Error placing retracement order: {e}\n")
-            return False
+    def monitor_price(self):
+        while True:
+            market_price = self.get_market_price()
+            if market_price:
+                logger.info(f"Current market price: {market_price}")
+                if market_price >= self.trigger_price:
+                    logger.warning(f"Trigger price {self.trigger_price} reached!")
+                    return True
+            time.sleep(self.monitoring_interval)
 
     def run(self):
         try:
             is_opened_position = False
-            high_price = Decimal('-Infinity')
-            low_price = Decimal('Infinity')
+
+            logger.info("Starting price monitoring...")
+            if self.monitor_price():
+                logger.info("Trigger price reached. Starting trading operations.")
 
             while True:
                 market_price = self.get_market_price()
@@ -53,17 +48,10 @@ class TradingBot:
                     time.sleep(5)
                     continue
 
-                high_price = max(high_price, market_price)
-                low_price = min(low_price, market_price)
-
                 logger.info(
-                    f"Market price: {market_price}, High: {high_price}, Low: {low_price}, "
-                    f"Trigger price: {self.trigger_price}, Stop loss: {self.stop_loss_price}, "
-                    f"Order price: {self.order_price}"
+                    f"Market price: {market_price}, Trigger price: {self.trigger_price}, "
+                    f"stop loss price: {self.stop_loss_price}, Order price: {self.order_price}"
                 )
-
-                retracement_price = self.calculate_retracement_price(high_price, low_price)
-                logger.info(f"Calculated retracement price: {retracement_price}")
 
                 order_placed = self.get_open_order()
                 open_position = self.get_open_position()
@@ -80,14 +68,16 @@ class TradingBot:
                             logger.warning("Position closed")
 
                         is_opened_position = False
-                        high_price = Decimal('-Infinity')
-                        low_price = Decimal('Infinity')
                     elif not order_placed:
-                        if market_price <= retracement_price:
-                            self.place_retracement_order(retracement_price)
-                        else:
-                            self.place_order()
+                        order_placed = self.place_order()
 
                 time.sleep(0.1)
         except Exception as e:
             logger.error(f"An error occurred in run: {e}\n")
+
+if __name__ == "__main__":
+    try:
+        bot = TradingBot()
+        bot.run()
+    except Exception as e:
+        logger.error(f"An unhandled exception occurred: {e}\n")
