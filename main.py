@@ -5,6 +5,17 @@ from pybit.unified_trading import HTTP
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional, Dict, Any
 
+import telebot
+from telebot.types import Message
+
+# Constants
+TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
+
+# Initialize Telegram bot
+bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
