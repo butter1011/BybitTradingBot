@@ -4,39 +4,54 @@ import logging
 from pybit.unified_trading import HTTP
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional, Dict, Any
+from dotenv import load_dotenv
+import os
 
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Constants
-API_KEY = ""
-API_SECRET = ""
+API_KEY = os.getenv('API_KEY')
+API_SECRET = os.getenv('API_SECRET')
 
 class TradingBot:
     def __init__(self):
-        self.session = HTTP(testnet=False, api_key=API_KEY, api_secret=API_SECRET)
+        self.session = HTTP(testnet=True, api_key=API_KEY, api_secret=API_SECRET)
         self.symbol = 'BTCUSDT'
-        self.trigger_price = Decimal(input("Enter the trigger price: "))
-        self.order_price = Decimal(input("Enter the order price: "))
-        self.stop_loss_price = self.get_stop_loss_price()
-        self.amount = Decimal(input("Enter the amount: "))
-        self.leverage = int(input("Enter the leverage: "))
+        self.trigger_price = self._get_decimal_input("Enter the trigger price: ")
+        self.order_price = self._get_decimal_input("Enter the order price: ")
+        self.stop_loss_price = self._get_stop_loss_price()
+        self.amount = self._get_decimal_input("Enter the amount: ")
+        self.leverage = self._get_integer_input("Enter the leverage: ")
 
-    def get_stop_loss_price(self) -> Decimal:
+    def _get_decimal_input(self, prompt: str) -> Decimal:
+        while True:
+            try:
+                return Decimal(input(prompt))
+            except ValueError:
+                print("Invalid input. Please enter a valid number.")
+
+    def _get_integer_input(self, prompt: str) -> int:
+        while True:
+            try:
+                return int(input(prompt))
+            except ValueError:
+                print("Invalid input. Please enter a valid integer.")
+
+    def _get_stop_loss_price(self) -> Decimal:
         user_input = input("Enter the stop loss price (press Enter for default): ")
-        if user_input:
-            return Decimal(user_input)
-        else:
-            return self.trigger_price + Decimal('1')
+        return Decimal(user_input) if user_input else self.trigger_price + Decimal('1')
 
     def get_market_price(self) -> Optional[Decimal]:
         try:
             ticker = self.session.get_tickers(category="linear", symbol=self.symbol)
             return Decimal(ticker["result"]["list"][0]["lastPrice"])
         except Exception as e:
-            logger.error(f"Error getting market price: {e}\n")
+            logger.error(f"Error getting market price: {e}")
             return None
 
     def get_open_order(self) -> Optional[Dict[str, Any]]:
@@ -48,7 +63,7 @@ class TradingBot:
                     return order
             return None
         except Exception as e:
-            logger.error(f"Error checking open orders: {e}\n")
+            logger.error(f"Error checking open orders: {e}")
             return None
 
     def get_order_history(self) -> Optional[list[Dict[str, Any]]]:
@@ -56,19 +71,19 @@ class TradingBot:
             order_history = self.session.get_order_history(category="linear", symbol=self.symbol, limit=1)
             return order_history["result"]["list"]
         except Exception as e:
-            logger.error(f"Error checking order history: {e}\n")
+            logger.error(f"Error checking order history: {e}")
             return None
 
     def get_open_position(self) -> Optional[Dict[str, Any]]:
         try:
             positions = self.session.get_positions(category="linear", symbol=self.symbol)
             for pos in positions["result"]["list"]:
-                if pos["stopLoss"] != "":
+                if pos["stopLoss"]:
                     logger.info(f"Found position... {pos['curRealisedPnl']}")
                     return pos
             return None
         except Exception as e:
-            logger.error(f"Error checking open positions: {e}\n")
+            logger.error(f"Error checking open positions: {e}")
             return None
 
     def place_order(self) -> bool:
@@ -81,7 +96,6 @@ class TradingBot:
                 orderType="Limit",
                 qty=str(qty),
                 price=str(self.order_price),
-             
                 stopLoss=str(self.stop_loss_price),
                 triggerPrice=str(self.trigger_price),
                 leverage=str(self.leverage),
@@ -95,7 +109,7 @@ class TradingBot:
                 logger.warning(f"Unexpected order response format: {order}")
             return True
         except Exception as e:
-            logger.error(f"Error placing order: {e}\n")
+            logger.error(f"Error placing order: {e}")
             return False
 
     def run(self):
@@ -110,7 +124,7 @@ class TradingBot:
 
                 logger.info(
                     f"Market price: {market_price}, Trigger price: {self.trigger_price}, "
-                    f"stop loss price: {self.stop_loss_price}, Order price: {self.order_price}"
+                    f"Stop loss price: {self.stop_loss_price}, Order price: {self.order_price}"
                 )
 
                 order_placed = self.get_open_order()
@@ -129,15 +143,15 @@ class TradingBot:
 
                         is_opened_position = False
                     elif not order_placed:
-                        order_placed = self.place_order()
+                        self.place_order()
 
                 time.sleep(0.1)
         except Exception as e:
-            logger.error(f"An error occurred in run: {e}\n")
+            logger.error(f"An error occurred in run: {e}")
 
 if __name__ == "__main__":
     try:
         bot = TradingBot()
         bot.run()
     except Exception as e:
-        logger.error(f"An unhandled exception occurred: {e}\n")
+        logger.error(f"An unhandled exception occurred: {e}")
