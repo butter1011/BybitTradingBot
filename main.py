@@ -9,10 +9,6 @@ from typing import Optional, Dict, Any
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Constants
-API_KEY = 'r20vk2T6FIl5BhVgg4'
-API_SECRET = 'sRL0lTzifGRIlMhHZIBCEs5RbQbeeUz4DD2R'
-
 class TradingBot:
     def __init__(self):
         self.session = HTTP(testnet=True, api_key=API_KEY, api_secret=API_SECRET)
